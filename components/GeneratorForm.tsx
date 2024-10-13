@@ -3,20 +3,18 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { WallpaperModal } from "./WallpaperModal";
 import { pinOptions, previewMapUrl } from "@/utils/pinOptions";
+import { Input } from "./ui/input";
 
 export function GeneratorForm() {
   const [location, setLocation] = useState("");
-  const [date, setDate] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [wallpaperUrl, setWallpaperUrl] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
-  const [includeDate, setIncludeDate] = useState(false);
   const [selectedPin, setSelectedPin] = useState(pinOptions[0].id);
   const [previewImageUrl, setPreviewImageUrl] = useState("");
 
@@ -102,9 +100,7 @@ export function GeneratorForm() {
 
         const proxyUrl = `/api/imageProxy?url=${encodeURIComponent(
           wallpaperUrl
-        )}${
-          includeDate ? `&date=${encodeURIComponent(date)}` : ""
-        }&selectedPin=${selectedPin}`;
+        )}&selectedPin=${selectedPin}`;
         setWallpaperUrl(proxyUrl);
         setIsModalOpen(true);
       } else {
@@ -162,10 +158,18 @@ export function GeneratorForm() {
         markerImg.onload = resolve;
       });
 
+      // Ajuster la position de l'ombre en fonction du pin sélectionné
+      let shadowOffsetX = 0;
+      if (selectedPin === "coeur2") {
+        shadowOffsetX = markerSize / 12;
+      } else if (selectedPin === "coeur3") {
+        shadowOffsetX = -markerSize / 12;
+      }
+
       // Dessiner l'ombre
       ctx.beginPath();
       ctx.arc(
-        markerX + markerSize / 2,
+        markerX + markerSize / 2 + shadowOffsetX,
         markerY + markerSize,
         markerSize / 6,
         0,
@@ -180,17 +184,27 @@ export function GeneratorForm() {
 
     // Ajouter le bandeau d'avertissement
     ctx.fillStyle = "rgba(255, 255, 0, 0.8)";
-    ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
+    const notchHeight = 34; // Hauteur approximative de l'encoche
+    const bannerHeight = 60;
+    ctx.fillRect(0, notchHeight, canvas.width, bannerHeight);
     ctx.fillStyle = "black";
     ctx.font = "bold 10px Arial";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("APERÇU", canvas.width / 2, canvas.height - 48);
-    ctx.fillText("CARTE NON RÉELLE", canvas.width / 2, canvas.height - 33);
+    ctx.fillText(
+      "APERÇU",
+      canvas.width / 2,
+      notchHeight + bannerHeight / 2 - 20
+    );
+    ctx.fillText(
+      "CARTE NON RÉELLE",
+      canvas.width / 2,
+      notchHeight + bannerHeight / 2
+    );
     ctx.fillText(
       "RÉSULTAT FINAL DE MEILLEURE QUALITÉ",
       canvas.width / 2,
-      canvas.height - 18
+      notchHeight + bannerHeight / 2 + 20
     );
 
     setPreviewImageUrl(canvas.toDataURL());
@@ -234,24 +248,6 @@ export function GeneratorForm() {
               </div>
             )}
           </div>
-          <div className="flex items-center space-x-2 mb-4">
-            <input
-              type="checkbox"
-              id="includeDate"
-              checked={includeDate}
-              onChange={(e) => setIncludeDate(e.target.checked)}
-            />
-            <label htmlFor="includeDate">Inclure la date</label>
-          </div>
-          {includeDate && (
-            <Input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full mb-4"
-            />
-          )}
-
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Choisissez un pin

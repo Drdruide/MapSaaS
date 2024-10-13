@@ -35,59 +35,12 @@ export function WallpaperModal({
     // Dessiner l'image de base
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-    const markerSize = 150; // Garder la grande taille du marqueur
+    const markerSize = 150;
     const markerX = canvas.width / 2 - markerSize / 2;
-    const markerY = canvas.height / 2 - markerSize; // Ajuster la position verticale pour que la pointe soit au centre
+    const markerY = canvas.height / 2 - markerSize;
 
-    // Dessiner le marqueur pin-l-heart de Mapbox
+    // Dessiner le marqueur
     await drawMapboxMarker(ctx, markerX, markerY, markerSize);
-
-    // Ajouter la date
-    const dateMatch = wallpaperUrl.match(/date=([^&]+)/);
-    if (dateMatch) {
-      const dateString = decodeURIComponent(dateMatch[1]);
-      const date = new Date(dateString);
-      const formattedDate = date.toLocaleDateString("fr-FR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
-
-      // Dessiner l'arrière-plan de la date avec un effet d'ombre
-      ctx.save();
-      ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
-      ctx.shadowBlur = 10;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 2;
-
-      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-      ctx.beginPath();
-      const dateBackgroundWidth = 160;
-      const dateBackgroundHeight = 50;
-      const dateBackgroundX = canvas.width / 2 - dateBackgroundWidth / 2;
-      const dateBackgroundY = markerY + markerSize + 80; // Ajusté pour être sous le marqueur
-      ctx.roundRect(
-        dateBackgroundX,
-        dateBackgroundY,
-        dateBackgroundWidth,
-        dateBackgroundHeight,
-        25
-      );
-      ctx.fill();
-
-      ctx.restore(); // Restaure le contexte pour ne pas appliquer l'ombre au texte
-
-      // Ajouter le texte de la date
-      ctx.font = "bold 24px 'Montserrat', sans-serif";
-      ctx.fillStyle = "#333333";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(
-        formattedDate,
-        canvas.width / 2,
-        dateBackgroundY + dateBackgroundHeight / 2
-      );
-    }
 
     const resizedUrl = canvas.toDataURL("image/png");
     setResizedImageUrl(resizedUrl);
@@ -111,10 +64,24 @@ export function WallpaperModal({
     const scale = size / markerImg.width;
     const markerHeight = markerImg.height * scale;
 
+    // Ajuster la position de l'ombre en fonction du pin sélectionné
+    let shadowOffsetX = 0;
+    if (selectedPin === "coeur2") {
+      shadowOffsetX = size / 10; // Déplace l'ombre légèrement vers la droite
+    } else if (selectedPin === "coeur3") {
+      shadowOffsetX = -size / 4; // Déplace l'ombre plus vers la gauche
+    }
+
     // Dessiner l'ombre
     ctx.beginPath();
-    ctx.arc(x + size / 2, y + markerHeight, size / 6, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
+    ctx.arc(
+      x + size / 2 + shadowOffsetX,
+      y + markerHeight,
+      size / 6,
+      0,
+      Math.PI * 2
+    );
+    ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
     ctx.fill();
 
     // Dessiner le marqueur
