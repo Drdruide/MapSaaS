@@ -225,7 +225,9 @@ export function GeneratorForm() {
               error
             );
             alert(
-              `Une erreur s'est produite lors de l'upload de l'image personnalisée: ${error.message}`
+              `Une erreur s'est produite lors de l'upload de l'image personnalisée: ${
+                (error as Error).message
+              }`
             );
             return;
           }

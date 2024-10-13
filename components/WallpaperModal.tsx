@@ -60,7 +60,7 @@ export function WallpaperModal({
     size: number
   ) => {
     let markerImg: HTMLImageElement | ImageBitmap;
-    let maskImg: HTMLImageElement;
+    let maskImg: HTMLImageElement | null = null;
 
     // Ajuster la taille pour l'image personnalisée
     const customImageSizeFactor = 2; // L'image personnalisée sera 2 fois plus grande
@@ -72,7 +72,7 @@ export function WallpaperModal({
       maskImg = new Image();
       maskImg.src = "/pin/photo.svg";
       await new Promise((resolve) => {
-        maskImg.onload = resolve;
+        maskImg!.onload = resolve;
       });
     } else {
       const selectedPinOption = pinOptions.find(
@@ -103,7 +103,7 @@ export function WallpaperModal({
     ctx.fill();
 
     // Dessiner le marqueur
-    if (selectedPin === "custom") {
+    if (selectedPin === "custom" && maskImg) {
       // Créer un canvas temporaire pour le masquage
       const tempCanvas = document.createElement("canvas");
       const tempCtx = tempCanvas.getContext("2d");

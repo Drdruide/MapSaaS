@@ -34,7 +34,10 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Erreur détaillée dans uploadImage API:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", details: error.message },
+      {
+        error: "Internal Server Error",
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }
