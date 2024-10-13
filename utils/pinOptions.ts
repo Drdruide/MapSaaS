@@ -15,4 +15,24 @@ export const pinOptions = [
   { id: "coeur3", name: "Coeur 3", file: "/pin/coeur3.svg" }, // l'ombre doit etre un peu plus à gauche
 ];
 
-export const previewMapUrl = "/pin/preview-map-paris-costum.png";
+export const mapStyles = [
+  {
+    id: "default",
+    name: "Carte par défaut",
+    style: "samuelbns/cm26girtq00cs01pe7e7fhj72",
+  },
+  {
+    id: "alternative",
+    name: "Carte alternative",
+    style: "samuelbns/cm27n0p2200j701pl7v127w7h",
+  },
+];
+
+export const previewMapUrl = "/pin/preview-map-paris-costum1.png";
+export const previewMapUrlAlternative = "/pin/preview-map-paris-costum2.png"; // Ajoutez cette ligne
+
+export const markerSizes = [
+  { id: "small", name: "Petit", size: 100 },
+  { id: "medium", name: "Moyen", size: 150 },
+  { id: "large", name: "Grand", size: 200 },
+];

@@ -4,8 +4,21 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { WallpaperModal } from "./WallpaperModal";
-import { pinOptions, previewMapUrl } from "@/utils/pinOptions";
+import {
+  pinOptions,
+  previewMapUrl,
+  previewMapUrlAlternative,
+  mapStyles,
+  markerSizes,
+} from "@/utils/pinOptions";
 import { Input } from "./ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export function GeneratorForm() {
   const [location, setLocation] = useState("");
@@ -17,6 +30,10 @@ export function GeneratorForm() {
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const [selectedPin, setSelectedPin] = useState(pinOptions[0].id);
   const [previewImageUrl, setPreviewImageUrl] = useState("");
+  const [selectedMapStyle, setSelectedMapStyle] = useState(mapStyles[0].id);
+  const [selectedMarkerSize, setSelectedMarkerSize] = useState(
+    markerSizes[1].id
+  ); // Taille moyenne par défaut
 
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
@@ -83,7 +100,9 @@ export function GeneratorForm() {
   const generateWallpaper = async () => {
     if (!location || !mapboxToken) return;
 
-    const style = "samuelbns/cm26girtq00cs01pe7e7fhj72";
+    const selectedStyle =
+      mapStyles.find((style) => style.id === selectedMapStyle)?.style ||
+      mapStyles[0].style;
     const zoom = 13;
     const width = 600;
     const height = 1280;
@@ -96,11 +115,11 @@ export function GeneratorForm() {
       const data = await response.json();
       if (data.features && data.features.length > 0) {
         const [lng, lat] = data.features[0].center;
-        const wallpaperUrl = `https://api.mapbox.com/styles/v1/${style}/static/${lng},${lat},${zoom}/${width}x${height}@2x?access_token=${mapboxToken}`;
+        const wallpaperUrl = `https://api.mapbox.com/styles/v1/${selectedStyle}/static/${lng},${lat},${zoom}/${width}x${height}@2x?access_token=${mapboxToken}`;
 
         const proxyUrl = `/api/imageProxy?url=${encodeURIComponent(
           wallpaperUrl
-        )}&selectedPin=${selectedPin}`;
+        )}&selectedPin=${selectedPin}&markerSize=${selectedMarkerSize}`;
         setWallpaperUrl(proxyUrl);
         setIsModalOpen(true);
       } else {
@@ -127,7 +146,10 @@ export function GeneratorForm() {
     canvas.height = 500;
 
     const backgroundImg = new Image();
-    backgroundImg.src = previewMapUrl;
+    backgroundImg.src =
+      selectedMapStyle === "alternative"
+        ? previewMapUrlAlternative
+        : previewMapUrl;
     await new Promise((resolve) => {
       backgroundImg.onload = resolve;
     });
@@ -145,9 +167,10 @@ export function GeneratorForm() {
 
     const selectedPinOption = pinOptions.find((pin) => pin.id === selectedPin);
     if (selectedPinOption) {
-      const realPinSize = 150;
+      const selectedSize =
+        markerSizes.find((size) => size.id === selectedMarkerSize)?.size || 150;
       const mockupScale = canvas.height / 2532;
-      const markerSize = realPinSize * mockupScale;
+      const markerSize = selectedSize * mockupScale;
 
       const markerX = canvas.width / 2 - markerSize / 2;
       const markerY = canvas.height / 2 - markerSize;
@@ -208,7 +231,7 @@ export function GeneratorForm() {
     );
 
     setPreviewImageUrl(canvas.toDataURL());
-  }, [selectedPin]);
+  }, [selectedPin, selectedMapStyle, selectedMarkerSize]);
 
   useEffect(() => {
     generatePreview();
@@ -250,6 +273,34 @@ export function GeneratorForm() {
           </div>
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
+              Choisissez un style de carte
+            </label>
+            <div className="flex justify-center space-x-4">
+              {mapStyles.map((style) => (
+                <button
+                  key={style.id}
+                  className={`w-24 h-24 border-2 rounded-md overflow-hidden ${
+                    selectedMapStyle === style.id
+                      ? "border-blue-500"
+                      : "border-gray-300"
+                  }`}
+                  onClick={() => setSelectedMapStyle(style.id)}
+                >
+                  <img
+                    src={
+                      style.id === "default"
+                        ? previewMapUrl
+                        : previewMapUrlAlternative
+                    }
+                    alt={style.name}
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Choisissez un pin
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -272,6 +323,26 @@ export function GeneratorForm() {
               ))}
             </div>
           </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Choisissez la taille du marqueur
+            </label>
+            <div className="flex justify-between">
+              {markerSizes.map((size) => (
+                <button
+                  key={size.id}
+                  className={`px-4 py-2 rounded ${
+                    selectedMarkerSize === size.id
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-200"
+                  }`}
+                  onClick={() => setSelectedMarkerSize(size.id)}
+                >
+                  {size.name}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <Button onClick={generateWallpaper} className="w-full">
             Générer le fond d'écran
@@ -282,6 +353,7 @@ export function GeneratorForm() {
             wallpaperUrl={wallpaperUrl}
             onClose={() => setIsModalOpen(false)}
             selectedPin={selectedPin}
+            selectedMarkerSize={selectedMarkerSize}
           />
         )}
       </div>

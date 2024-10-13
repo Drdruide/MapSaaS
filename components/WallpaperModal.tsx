@@ -2,18 +2,20 @@
 
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef } from "react";
-import { pinOptions } from "@/utils/pinOptions";
+import { pinOptions, markerSizes } from "@/utils/pinOptions";
 
 interface WallpaperModalProps {
   wallpaperUrl: string;
   onClose: () => void;
   selectedPin: string;
+  selectedMarkerSize: string;
 }
 
 export function WallpaperModal({
   wallpaperUrl,
   onClose,
   selectedPin,
+  selectedMarkerSize,
 }: WallpaperModalProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -35,12 +37,13 @@ export function WallpaperModal({
     // Dessiner l'image de base
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-    const markerSize = 150;
-    const markerX = canvas.width / 2 - markerSize / 2;
-    const markerY = canvas.height / 2 - markerSize;
+    const selectedSize =
+      markerSizes.find((size) => size.id === selectedMarkerSize)?.size || 150;
+    const markerX = canvas.width / 2 - selectedSize / 2;
+    const markerY = canvas.height / 2 - selectedSize;
 
     // Dessiner le marqueur
-    await drawMapboxMarker(ctx, markerX, markerY, markerSize);
+    await drawMapboxMarker(ctx, markerX, markerY, selectedSize);
 
     const resizedUrl = canvas.toDataURL("image/png");
     setResizedImageUrl(resizedUrl);
@@ -64,12 +67,12 @@ export function WallpaperModal({
     const scale = size / markerImg.width;
     const markerHeight = markerImg.height * scale;
 
-    // Ajuster la position de l'ombre en fonction du pin sélectionné
+    // Ajuster la taille de l'ombre en fonction de la taille du marqueur
     let shadowOffsetX = 0;
     if (selectedPin === "coeur2") {
-      shadowOffsetX = size / 10; // Déplace l'ombre légèrement vers la droite
+      shadowOffsetX = selectedSize / 10; // Déplace l'ombre légèrement vers la droite
     } else if (selectedPin === "coeur3") {
-      shadowOffsetX = -size / 4; // Déplace l'ombre plus vers la gauche
+      shadowOffsetX = -selectedSize / 4; // Déplace l'ombre plus vers la gauche
     }
 
     // Dessiner l'ombre
