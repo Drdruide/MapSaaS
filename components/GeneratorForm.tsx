@@ -12,13 +12,7 @@ import {
   markerSizes,
 } from "@/utils/pinOptions";
 import { Input } from "./ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import Cropper from "react-easy-crop";
 
 export function GeneratorForm() {
   const [location, setLocation] = useState("");
@@ -34,6 +28,12 @@ export function GeneratorForm() {
   const [selectedMarkerSize, setSelectedMarkerSize] = useState(
     markerSizes[1].id
   ); // Taille moyenne par défaut
+  const [customImage, setCustomImage] = useState<File | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+  const [isCropping, setIsCropping] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
@@ -97,6 +97,85 @@ export function GeneratorForm() {
     };
   }, []);
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      setCustomImage(event.target.files[0]);
+      setSelectedPin("custom");
+      setIsCropping(true);
+    }
+  };
+
+  const onCropComplete = useCallback(
+    (croppedArea: any, croppedAreaPixels: any) => {
+      setCroppedAreaPixels(croppedAreaPixels);
+    },
+    []
+  );
+
+  const createImage = (url: string): Promise<HTMLImageElement> =>
+    new Promise((resolve, reject) => {
+      const image = new Image();
+      image.addEventListener("load", () => resolve(image));
+      image.addEventListener("error", (error) => reject(error));
+      image.setAttribute("crossOrigin", "anonymous");
+      image.src = url;
+    });
+
+  const getCroppedImg = async (
+    imageSrc: string,
+    pixelCrop: { width: number; height: number; x: number; y: number }
+  ) => {
+    const image = await createImage(imageSrc);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    if (!ctx) {
+      return null;
+    }
+
+    canvas.width = pixelCrop.width;
+    canvas.height = pixelCrop.height;
+
+    ctx.drawImage(
+      image,
+      pixelCrop.x,
+      pixelCrop.y,
+      pixelCrop.width,
+      pixelCrop.height,
+      0,
+      0,
+      pixelCrop.width,
+      pixelCrop.height
+    );
+
+    return new Promise<string>((resolve) => {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          console.error("Canvas is empty");
+          return;
+        }
+        resolve(URL.createObjectURL(blob));
+      }, "image/jpeg");
+    });
+  };
+
+  const handleCropSave = useCallback(async () => {
+    if (customImage && croppedAreaPixels) {
+      const croppedImage = await getCroppedImg(
+        URL.createObjectURL(customImage),
+        croppedAreaPixels
+      );
+      if (croppedImage) {
+        const response = await fetch(croppedImage);
+        const blob = await response.blob();
+        setCustomImage(
+          new File([blob], "cropped_image.jpg", { type: "image/jpeg" })
+        );
+      }
+      setIsCropping(false);
+    }
+  }, [customImage, croppedAreaPixels]);
+
   const generateWallpaper = async () => {
     if (!location || !mapboxToken) return;
 
@@ -117,9 +196,41 @@ export function GeneratorForm() {
         const [lng, lat] = data.features[0].center;
         const wallpaperUrl = `https://api.mapbox.com/styles/v1/${selectedStyle}/static/${lng},${lat},${zoom}/${width}x${height}@2x?access_token=${mapboxToken}`;
 
-        const proxyUrl = `/api/imageProxy?url=${encodeURIComponent(
+        let proxyUrl = `/api/imageProxy?url=${encodeURIComponent(
           wallpaperUrl
         )}&selectedPin=${selectedPin}&markerSize=${selectedMarkerSize}`;
+
+        if (selectedPin === "custom" && customImage) {
+          const formData = new FormData();
+          formData.append("customImage", customImage);
+          try {
+            const uploadResponse = await fetch("/api/uploadImage", {
+              method: "POST",
+              body: formData,
+            });
+            if (!uploadResponse.ok) {
+              const errorData = await uploadResponse.json();
+              throw new Error(
+                `HTTP error! status: ${uploadResponse.status}, message: ${errorData.error}, details: ${errorData.details}`
+              );
+            }
+            const data = await uploadResponse.json();
+            if (data.error) {
+              throw new Error(data.error);
+            }
+            proxyUrl += `&customImageUrl=${encodeURIComponent(data.imageUrl)}`;
+          } catch (error) {
+            console.error(
+              "Erreur détaillée lors de l'upload de l'image:",
+              error
+            );
+            alert(
+              `Une erreur s'est produite lors de l'upload de l'image personnalisée: ${error.message}`
+            );
+            return;
+          }
+        }
+
         setWallpaperUrl(proxyUrl);
         setIsModalOpen(true);
       } else {
@@ -174,9 +285,8 @@ export function GeneratorForm() {
 
       const markerX = canvas.width / 2 - markerSize / 2;
       const markerY = canvas.height / 2 - markerSize;
-
       const markerImg = new Image();
-      markerImg.src = selectedPinOption.file;
+      markerImg.src = selectedPinOption.file ?? "";
       await new Promise((resolve) => {
         markerImg.onload = resolve;
       });
@@ -301,7 +411,7 @@ export function GeneratorForm() {
           </div>
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Choisissez un pin
+              Choisissez un pin ou uploadez une photo
             </label>
             <div className="grid grid-cols-3 gap-2">
               {pinOptions.map((pin) => (
@@ -312,16 +422,40 @@ export function GeneratorForm() {
                       ? "border-blue-500"
                       : "border-gray-300"
                   }`}
-                  onClick={() => setSelectedPin(pin.id)}
+                  onClick={() => {
+                    setSelectedPin(pin.id);
+                    if (pin.id === "custom" && fileInputRef.current) {
+                      fileInputRef.current.click();
+                    }
+                  }}
                 >
-                  <img
-                    src={pin.file}
-                    alt={pin.name}
-                    className="w-full h-8 object-contain"
-                  />
+                  {pin.id === "custom" ? (
+                    customImage ? (
+                      <img
+                        src={URL.createObjectURL(customImage)}
+                        alt="Custom"
+                        className="w-full h-8 object-contain"
+                      />
+                    ) : (
+                      "Upload"
+                    )
+                  ) : (
+                    <img
+                      src={pin.file || ""}
+                      alt={pin.name}
+                      className="w-full h-8 object-contain"
+                    />
+                  )}
                 </button>
               ))}
             </div>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept="image/*"
+              className="hidden"
+            />
           </div>
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -354,7 +488,31 @@ export function GeneratorForm() {
             onClose={() => setIsModalOpen(false)}
             selectedPin={selectedPin}
             selectedMarkerSize={selectedMarkerSize}
+            customImage={customImage}
+            selectedMapStyle={selectedMapStyle} // Ajoutez cette ligne
           />
+        )}
+
+        {isCropping && customImage && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-4 rounded-lg w-96 h-96">
+              <div className="relative w-full h-80">
+                <Cropper
+                  image={URL.createObjectURL(customImage)}
+                  crop={crop}
+                  zoom={zoom}
+                  aspect={1}
+                  onCropChange={setCrop}
+                  onZoomChange={setZoom}
+                  onCropComplete={onCropComplete}
+                />
+              </div>
+              <div className="mt-4 flex justify-between">
+                <Button onClick={() => setIsCropping(false)}>Annuler</Button>
+                <Button onClick={handleCropSave}>Sauvegarder</Button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
       <div className="md:w-1/2">

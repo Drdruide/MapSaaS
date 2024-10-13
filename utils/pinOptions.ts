@@ -11,8 +11,9 @@ export const colorOptions = [
 
 export const pinOptions = [
   { id: "coeur1", name: "Coeur 1", file: "/pin/coeur1.svg" },
-  { id: "coeur2", name: "Coeur 2", file: "/pin/coeur2.svg" }, // l'ombre doit etre un peu plus à droite
-  { id: "coeur3", name: "Coeur 3", file: "/pin/coeur3.svg" }, // l'ombre doit etre un peu plus à gauche
+  { id: "coeur2", name: "Coeur 2", file: "/pin/coeur2.svg" },
+  { id: "coeur3", name: "Coeur 3", file: "/pin/coeur3.svg" },
+  { id: "custom", name: "Photo personnelle", file: null },
 ];
 
 export const mapStyles = [

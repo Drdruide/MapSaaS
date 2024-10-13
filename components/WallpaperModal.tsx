@@ -9,6 +9,8 @@ interface WallpaperModalProps {
   onClose: () => void;
   selectedPin: string;
   selectedMarkerSize: string;
+  customImage: File | null;
+  selectedMapStyle: string; // Ajoutez cette prop
 }
 
 export function WallpaperModal({
@@ -16,6 +18,8 @@ export function WallpaperModal({
   onClose,
   selectedPin,
   selectedMarkerSize,
+  customImage,
+  selectedMapStyle, // Ajoutez cette prop
 }: WallpaperModalProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -55,40 +59,141 @@ export function WallpaperModal({
     y: number,
     size: number
   ) => {
-    const selectedPinOption = pinOptions.find((pin) => pin.id === selectedPin);
-    const markerUrl = selectedPinOption ? selectedPinOption.file : "/pin/1.svg";
-    const markerImg = new Image();
-    markerImg.src = markerUrl;
+    let markerImg: HTMLImageElement | ImageBitmap;
+    let maskImg: HTMLImageElement;
 
-    await new Promise((resolve) => {
-      markerImg.onload = resolve;
-    });
+    // Ajuster la taille pour l'image personnalisée
+    const customImageSizeFactor = 2; // L'image personnalisée sera 2 fois plus grande
+    const adjustedSize =
+      selectedPin === "custom" ? size * customImageSizeFactor : size;
 
-    const scale = size / markerImg.width;
-    const markerHeight = markerImg.height * scale;
-
-    // Ajuster la taille de l'ombre en fonction de la taille du marqueur
-    let shadowOffsetX = 0;
-    if (selectedPin === "coeur2") {
-      shadowOffsetX = selectedSize / 10; // Déplace l'ombre légèrement vers la droite
-    } else if (selectedPin === "coeur3") {
-      shadowOffsetX = -selectedSize / 4; // Déplace l'ombre plus vers la gauche
+    if (selectedPin === "custom" && customImage) {
+      markerImg = await createImageBitmap(customImage);
+      maskImg = new Image();
+      maskImg.src = "/pin/photo.svg";
+      await new Promise((resolve) => {
+        maskImg.onload = resolve;
+      });
+    } else {
+      const selectedPinOption = pinOptions.find(
+        (pin) => pin.id === selectedPin
+      );
+      const markerUrl = selectedPinOption
+        ? selectedPinOption.file
+        : "/pin/1.svg";
+      markerImg = new Image();
+      (markerImg as HTMLImageElement).src = markerUrl || "";
+      await new Promise((resolve) => {
+        (markerImg as HTMLImageElement).onload = resolve;
+      });
     }
+
+    const scale = adjustedSize / (markerImg.width || 1);
+    const markerHeight = (markerImg.height || 1) * scale;
+
+    // Ajuster la position pour centrer le marqueur plus grand
+    const adjustedX =
+      selectedPin === "custom" ? x - (adjustedSize - size) / 2 : x;
+    const adjustedY = selectedPin === "custom" ? y - (adjustedSize - size) : y;
 
     // Dessiner l'ombre
     ctx.beginPath();
-    ctx.arc(
-      x + size / 2 + shadowOffsetX,
-      y + markerHeight,
-      size / 6,
-      0,
-      Math.PI * 2
-    );
+    ctx.arc(x + size / 2, y + size, size / 6, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
     ctx.fill();
 
     // Dessiner le marqueur
-    ctx.drawImage(markerImg, x, y, size, markerHeight);
+    if (selectedPin === "custom") {
+      // Créer un canvas temporaire pour le masquage
+      const tempCanvas = document.createElement("canvas");
+      const tempCtx = tempCanvas.getContext("2d");
+      if (!tempCtx) return;
+
+      tempCanvas.width = adjustedSize;
+      tempCanvas.height = adjustedSize;
+
+      // Dessiner le masque
+      tempCtx.drawImage(maskImg, 0, 0, adjustedSize, adjustedSize);
+
+      // Appliquer le mode de composition pour utiliser le masque
+      tempCtx.globalCompositeOperation = "source-in";
+
+      // Dessiner l'image personnalisée
+      const aspectRatio = markerImg.width / markerImg.height;
+      let drawWidth = adjustedSize;
+      let drawHeight = adjustedSize;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      if (aspectRatio > 1) {
+        drawHeight = adjustedSize / aspectRatio;
+        offsetY = (adjustedSize - drawHeight) / 2;
+      } else {
+        drawWidth = adjustedSize * aspectRatio;
+        offsetX = (adjustedSize - drawWidth) / 2;
+      }
+
+      tempCtx.drawImage(markerImg, offsetX, offsetY, drawWidth, drawHeight);
+
+      // Dessiner le contour en suivant la forme du masque
+      const imageData = tempCtx.getImageData(0, 0, adjustedSize, adjustedSize);
+      const pixels = imageData.data;
+
+      ctx.save();
+      ctx.strokeStyle = selectedMapStyle === "default" ? "white" : "black";
+      ctx.lineWidth = adjustedSize / 20; // Augmenter l'épaisseur du contour
+      ctx.lineCap = "round"; // Ajouter cette ligne pour des extrémités arrondies
+      ctx.lineJoin = "round"; // Ajouter cette ligne pour des jonctions arrondies
+
+      let path = new Path2D();
+      let isDrawing = false;
+
+      for (let y = 0; y < adjustedSize; y++) {
+        for (let x = 0; x < adjustedSize; x++) {
+          const alpha = pixels[(y * adjustedSize + x) * 4 + 3];
+          if (alpha > 0) {
+            const hasTransparentNeighbor =
+              (x > 0 && pixels[(y * adjustedSize + (x - 1)) * 4 + 3] === 0) ||
+              (x < adjustedSize - 1 &&
+                pixels[(y * adjustedSize + (x + 1)) * 4 + 3] === 0) ||
+              (y > 0 && pixels[((y - 1) * adjustedSize + x) * 4 + 3] === 0) ||
+              (y < adjustedSize - 1 &&
+                pixels[((y + 1) * adjustedSize + x) * 4 + 3] === 0);
+
+            if (hasTransparentNeighbor) {
+              if (!isDrawing) {
+                path.moveTo(adjustedX + x, adjustedY + y);
+                isDrawing = true;
+              } else {
+                path.lineTo(adjustedX + x, adjustedY + y);
+              }
+            }
+          } else if (isDrawing) {
+            isDrawing = false;
+          }
+        }
+      }
+
+      ctx.stroke(path);
+      ctx.restore();
+
+      // Dessiner le résultat final sur le canvas principal
+      ctx.drawImage(
+        tempCanvas,
+        adjustedX,
+        adjustedY,
+        adjustedSize,
+        adjustedSize
+      );
+    } else {
+      ctx.drawImage(
+        markerImg,
+        adjustedX,
+        adjustedY,
+        adjustedSize,
+        markerHeight
+      );
+    }
   };
 
   useEffect(() => {
